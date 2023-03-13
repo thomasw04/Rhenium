@@ -1,0 +1,42 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'RustyBear-Engine'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=RustyBear-Engine",
+                    "--package=RustyBear-Engine"
+                ],
+                "filter": {
+                    "name": "RustyBear-Engine",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'RustyBear-Engine'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=RustyBear-Engine",
+                    "--package=RustyBear-Engine"
+                ],
+                "filter": {
+                    "name": "RustyBear-Engine",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

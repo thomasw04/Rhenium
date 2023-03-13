@@ -8,5 +8,8 @@ edition = "2021"
 [dependencies]
 glam = "0.23.0"
 lazy_static = "1.4.0"
+log = "0.4.17"
+serde = "1.0.155"
+simplelog = "0.12.1"
 vulkano = "0.32.3"
 winit = "0.28.2"
