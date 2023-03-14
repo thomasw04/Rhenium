@@ -2,6 +2,7 @@ extern crate winit;
 extern crate vulkano;
 extern crate log;
 
+use vulkano::{instance::debug::{DebugUtilsMessengerCreateInfo, DebugUtilsMessageSeverity, DebugUtilsMessageType, DebugUtilsMessenger}};
 use winit::{dpi::LogicalSize, event::{Event, WindowEvent}};
 use std::{sync::Arc};
 
@@ -17,7 +18,8 @@ pub struct Version {
 }
 
 pub struct Instance {
-    instance: Arc<vulkano::instance::Instance>
+    instance: Arc<vulkano::instance::Instance>,
+    debug: Option<DebugUtilsMessenger>,
 }
 pub struct Window {
     title: &'static str,
@@ -29,8 +31,7 @@ pub struct Window {
 
 impl Instance {
     pub fn new(name: String, version: Version) -> Self {
-
-        log::info!("==============================Initializing RustyBear-Engine==============================");
+        log::info!("Loading vulkan library...");
 
         let library = vulkano::library::VulkanLibrary::new()
             .unwrap_or_else(|err| panic!("Couldn't load Vulkan library: {:?}", err));
@@ -39,12 +40,12 @@ impl Instance {
 
         if VALIDATION_LAYERS_ENABLED
         {
-            if !Self::validation_layers_available(library.clone(), layers.as_ref())
+            if !Self::validation_layers_available(&library, &layers)
             {
-                panic!("Validation layers are enabled, but not available!");
+                panic!("Validation layers are enabled, but not available.");
             }
 
-            log::info!("Success! Loading validation layers...");
+            log::info!("Found required layers. Installing...");
         }
         else
         {
@@ -68,22 +69,75 @@ impl Instance {
         let instance = vulkano::instance::Instance::new(library.clone(), info)
             .unwrap_or_else(|err| panic!("Couldn't create instance: {:?}", err));
 
-        return Instance { instance: instance.clone() };
+        let callback = Self::create_debug_callback(&instance);
+
+        return Instance { instance: instance.clone(), debug: callback};
     }
 
-    fn validation_layers_available(library: Arc<vulkano::library::VulkanLibrary>, layers: &Vec<String>) -> bool
+    fn validation_layers_available(library: &Arc<vulkano::library::VulkanLibrary>, layers: &Vec<String>) -> bool
     {
-        log::info!("Loading available Layers...");
+        log::info!("Loading available layers...");
 
         let sup_layers: Vec<String> = library.layer_properties().unwrap().map(|a| a.name().to_owned()).collect();
 
         for l in sup_layers.clone()
         {
-            log::debug!("Available layer: {}", l);
+            log::debug!("  Available layer: {}", l);
         }
 
         return layers.iter().all(|layer| sup_layers.contains(&layer.to_string()));
     }
+
+    fn create_debug_callback(instance: &Arc<vulkano::instance::Instance>) -> Option<vulkano::instance::debug::DebugUtilsMessenger>
+    {
+        if !VALIDATION_LAYERS_ENABLED { return None; }
+
+        let callback = unsafe {
+            DebugUtilsMessenger::new(instance.to_owned(), 
+                DebugUtilsMessengerCreateInfo 
+                { 
+                    message_severity: DebugUtilsMessageSeverity { error: true, warning: true, information: false, verbose: false, .. Default::default()},
+                    message_type: DebugUtilsMessageType { general: true, validation: true, performance: true, .. Default::default()},
+                    ..DebugUtilsMessengerCreateInfo::user_callback(Arc::new(|msg| 
+                    {
+                        let part = if msg.ty.general 
+                        { 
+                            "General"
+                        }
+                        else if msg.ty.performance
+                        {
+                            "Performance"
+                        }
+                        else if msg.ty.validation
+                        {
+                            "Validation"
+                        }
+                        else 
+                        {
+                            "Unknown"
+                        };
+                        
+
+                        if msg.severity.error
+                        {
+                            log::error!("[{}] {}", part, msg.description);
+                        }
+                        else if msg.severity.warning
+                        {
+                            log::warn!("[{}] {}", part, msg.description);
+                        }
+                        else if msg.severity.information
+                        {
+                            log::info!("[{}] {}", part, msg.description);
+                        }
+                    }))
+                },
+            ).ok()
+        };
+
+        return callback;
+    }
+
 }
 
 impl Window {
