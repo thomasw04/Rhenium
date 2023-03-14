@@ -42,10 +42,13 @@ impl Instance {
         {
             if !Self::validation_layers_available(&library, &layers)
             {
-                panic!("Validation layers are enabled, but not available.");
+                log::error!("Validation layers are enabled, but not available. (Did you install the VulkanSDK?)");
+                layers.clear();
             }
-
-            log::info!("Found required layers. Installing...");
+            else
+            {
+                log::info!("Found required layers. Installing...");
+            }            
         }
         else
         {
