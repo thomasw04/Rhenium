@@ -64,6 +64,8 @@ impl Instance {
             //For now just enable all supported extensions. Should be changed.
             enabled_extensions: library.supported_extensions().clone(),
             enabled_layers: layers,
+            //Needed because macos only supports a subset of vulkan. We don't want that. Native metal support will come.
+            enumerate_portability: true,
             .. Default::default()
         };
 
