@@ -2,9 +2,9 @@ extern crate winit;
 extern crate vulkano;
 extern crate log;
 
-use vulkano::{instance::debug::{DebugUtilsMessengerCreateInfo, DebugUtilsMessageSeverity, DebugUtilsMessageType, DebugUtilsMessenger}};
+use vulkano::{instance::debug::{DebugUtilsMessengerCreateInfo, DebugUtilsMessageSeverity, DebugUtilsMessageType, DebugUtilsMessenger}, device::{Properties, physical::PhysicalDeviceType, physical::PhysicalDevice, DeviceCreateInfo, QueueCreateInfo, Queue}, memory::MemoryProperties};
 use winit::{dpi::LogicalSize, event::{Event, WindowEvent}};
-use std::{sync::Arc};
+use std::{sync::Arc, borrow::BorrowMut};
 
 #[cfg(all(debug_assertions))]
 const VALIDATION_LAYERS_ENABLED: bool = true;
@@ -21,6 +21,22 @@ pub struct Instance {
     instance: Arc<vulkano::instance::Instance>,
     debug: Option<DebugUtilsMessenger>,
 }
+
+#[derive(Default)]
+pub struct DeviceInfo {
+    index: usize,
+    queue_index: usize,
+    discrete: bool,
+    memory: u32,
+    score: u32,
+}
+
+pub struct Device {
+    device: Arc<vulkano::device::Device>,
+    info: DeviceInfo,
+    queues: Vec<Arc<Queue>>,
+}
+
 pub struct Window {
     title: &'static str,
     width: u32,
@@ -141,6 +157,82 @@ impl Instance {
         return callback;
     }
 
+}
+
+impl DeviceInfo {
+
+    pub fn new(instance: &Instance) -> Self
+    {
+        let mut best_device = DeviceInfo {..Default::default()};
+
+        for (pos, dev) in instance.instance.enumerate_physical_devices().unwrap().enumerate()
+        {
+            let mut device = DeviceInfo { index: pos, .. Default::default()};
+
+            Self::compute_base_score(device.borrow_mut() ,dev.properties());
+            Self::compute_memory_score(device.borrow_mut(), dev.memory_properties());
+            Self::find_queue_families(device.borrow_mut(), dev);
+
+            if device.score > best_device.score
+            {
+               best_device = device;
+            }
+        }
+
+        return best_device;
+    }
+
+    fn compute_base_score(device: &mut DeviceInfo, props: &Properties)
+    {
+        //Very basic scoring function. Should be extended in the future. (score += 0 is kind of a placeholder)
+        match props.device_type 
+        {
+            PhysicalDeviceType::DiscreteGpu => { device.score += 100; device.discrete = true; },
+            PhysicalDeviceType::IntegratedGpu => { device.score += 10; device.discrete = false; },
+            PhysicalDeviceType::VirtualGpu => { device.score += 1; device.discrete = false; },
+            PhysicalDeviceType::Other => { device.score += 0; device.discrete = false; },
+            _ => { device.score += 0; device.discrete = false; },
+        }
+    }
+
+    fn compute_memory_score(device: &mut DeviceInfo, props: &MemoryProperties)
+    {
+        //Not implemented.
+        device.memory = 0;
+    }
+
+    fn find_queue_families(device: &mut DeviceInfo, phys: Arc<PhysicalDevice>)
+    {
+        for (pos, family) in phys.queue_family_properties().iter().enumerate()
+        {
+            if family.queue_flags.graphics
+            {
+                device.queue_index = pos;
+                return;
+            }
+
+
+        }
+    }
+
+}
+
+impl Device {
+    pub fn new(instance: &Instance, info: DeviceInfo) -> Self
+    {
+        let phys = instance.instance.enumerate_physical_devices().unwrap().nth(info.index).unwrap();
+
+        let (device, queues) = vulkano::device::Device::new(phys,
+        DeviceCreateInfo {
+            queue_create_infos: vec![QueueCreateInfo {
+                queue_family_index: info.queue_index as u32,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }).expect("Failed to create device.");
+
+        return Device { device: device, info: info, queues: queues.collect()}
+    }
 }
 
 impl Window {
