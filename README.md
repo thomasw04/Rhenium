@@ -11,4 +11,4 @@ At the beginning, I will try to make rendering a triangle work. Then I will deci
 
 2. Clone the repository and run ```cargo run``` in the project folder.
 
-3. It should work on all desktop platforms that support Vulkan (or Metal when its implemented).
+3. It should work on all desktop platforms that support Vulkan (or Metal when its implemented). For debugging in vsc you will need the CodeLLDB extension.
