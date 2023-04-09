@@ -1,8 +1,13 @@
 extern crate winit;
+extern crate vulkano_win;
 extern crate vulkano;
 extern crate log;
 
-use vulkano::{instance::debug::{DebugUtilsMessengerCreateInfo, DebugUtilsMessageSeverity, DebugUtilsMessageType, DebugUtilsMessenger}, device::{Properties, physical::PhysicalDeviceType, physical::PhysicalDevice, DeviceCreateInfo, QueueCreateInfo, Queue}, memory::MemoryProperties};
+use std::cmp::max;
+use std::cmp::min;
+use vulkano::image::ImageUsage;
+use vulkano_win::VkSurfaceBuild;
+use vulkano::{instance::debug::{DebugUtilsMessengerCreateInfo, DebugUtilsMessageSeverity, DebugUtilsMessageType, DebugUtilsMessenger}, device::{Properties, physical::PhysicalDeviceType, physical::PhysicalDevice, DeviceCreateInfo, QueueCreateInfo, Queue, QueueFlags, DeviceExtensions}, memory::MemoryProperties, swapchain::{Surface, SwapchainCreateInfo}, image::{swapchain, SwapchainImage}};
 use winit::{dpi::LogicalSize, event::{Event, WindowEvent}};
 use std::{sync::Arc, borrow::BorrowMut};
 
@@ -19,7 +24,7 @@ pub struct Version {
 
 pub struct Instance {
     instance: Arc<vulkano::instance::Instance>,
-    debug: Option<DebugUtilsMessenger>,
+    debug: Option<Arc<DebugUtilsMessenger>>,
 }
 
 #[derive(Default)]
@@ -41,8 +46,13 @@ pub struct Window {
     title: &'static str,
     width: u32,
     height: u32,
-    window: winit::window::Window,
+    window: Arc<Surface>,
     event_loop: winit::event_loop::EventLoop<()>,
+}
+
+pub struct Swapchain {
+    swapchain: Arc<vulkano::swapchain::Swapchain>,
+    images: Vec<Arc<SwapchainImage>>
 }
 
 impl Instance {
@@ -78,7 +88,7 @@ impl Instance {
             engine_version: vulkano::Version {major: 1, minor: 0, patch: 0},
 
             //For now just enable all supported extensions. Should be changed.
-            enabled_extensions: library.supported_extensions().clone(),
+            enabled_extensions: vulkano_win::required_extensions(&library),
             enabled_layers: layers,
             //Needed because macos only supports a subset of vulkan. We don't want that. Native metal support will come.
             enumerate_portability: true,
@@ -109,7 +119,7 @@ impl Instance {
         return layers.iter().all(|layer| sup_layers.contains(&layer.to_string()));
     }
 
-    fn create_debug_callback(instance: &Arc<vulkano::instance::Instance>) -> Option<vulkano::instance::debug::DebugUtilsMessenger>
+    fn create_debug_callback(instance: &Arc<vulkano::instance::Instance>) -> Option<Arc<vulkano::instance::debug::DebugUtilsMessenger>>
     {
         if !VALIDATION_LAYERS_ENABLED { return None; }
 
@@ -117,19 +127,19 @@ impl Instance {
             DebugUtilsMessenger::new(instance.to_owned(), 
                 DebugUtilsMessengerCreateInfo 
                 { 
-                    message_severity: DebugUtilsMessageSeverity { error: true, warning: true, information: false, verbose: false, .. Default::default()},
-                    message_type: DebugUtilsMessageType { general: true, validation: true, performance: true, .. Default::default()},
+                    message_severity: DebugUtilsMessageSeverity::ERROR | DebugUtilsMessageSeverity::WARNING | DebugUtilsMessageSeverity::INFO,
+                    message_type: DebugUtilsMessageType::GENERAL | DebugUtilsMessageType::PERFORMANCE | DebugUtilsMessageType::VALIDATION,
                     ..DebugUtilsMessengerCreateInfo::user_callback(Arc::new(|msg| 
                     {
-                        let part = if msg.ty.general 
+                        let part = if msg.ty.contains(DebugUtilsMessageType::GENERAL)
                         { 
                             "General"
                         }
-                        else if msg.ty.performance
+                        else if msg.ty.contains(DebugUtilsMessageType::PERFORMANCE)
                         {
                             "Performance"
                         }
-                        else if msg.ty.validation
+                        else if msg.ty.contains(DebugUtilsMessageType::VALIDATION)
                         {
                             "Validation"
                         }
@@ -139,24 +149,30 @@ impl Instance {
                         };
                         
 
-                        if msg.severity.error
+                        if msg.severity.contains(DebugUtilsMessageSeverity::ERROR)
                         {
                             log::error!("[{}] {}", part, msg.description);
                         }
-                        else if msg.severity.warning
+                        else if msg.severity.contains(DebugUtilsMessageSeverity::WARNING)
                         {
                             log::warn!("[{}] {}", part, msg.description);
                         }
-                        else if msg.severity.information
+                        else if msg.severity.contains(DebugUtilsMessageSeverity::INFO)
                         {
                             log::info!("[{}] {}", part, msg.description);
                         }
                     }))
                 },
-            ).ok()
+            )
         };
 
-        return callback;
+        if callback.is_err()
+        {
+            log::warn!("Failed to create debug callback. Message: {}", callback.err().unwrap());
+            return None;
+        }
+
+        return Some(Arc::new(callback.ok().unwrap()));
     }
 
 }
@@ -207,7 +223,7 @@ impl DeviceInfo {
     {
         for (pos, family) in phys.queue_family_properties().iter().enumerate()
         {
-            if family.queue_flags.graphics
+            if family.queue_flags.contains(QueueFlags::GRAPHICS)
             {
                 device.queue_index = pos;
                 return;
@@ -230,6 +246,10 @@ impl Device {
                 queue_family_index: info.queue_index as u32,
                 ..Default::default()
             }],
+            enabled_extensions: DeviceExtensions {
+                khr_swapchain: true,
+                .. Default::default()
+            },
             ..Default::default()
         }).expect("Failed to create device.");
 
@@ -239,13 +259,13 @@ impl Device {
 
 impl Window {
 
-    pub fn new(title: &'static str, width: u32, height: u32) -> Self
+    pub fn new(instance: &Instance, title: &'static str, width: u32, height: u32) -> Self
     {
         let event_loop = winit::event_loop::EventLoop::new();
         let window = winit::window::WindowBuilder::new()
             .with_title(title)
             .with_inner_size(LogicalSize::new(f64::from(width), f64::from(height)))
-            .build(&event_loop)
+            .build_vk_surface(&event_loop, instance.instance.to_owned())
             .expect("Failed to create the window.");
         Window { title: title, width: width, height: height, window: window, event_loop: event_loop }
     }
@@ -267,6 +287,37 @@ impl Window {
                 _ => ()
             }
         });  
+    }
+}
+
+impl Swapchain {
+    pub fn new(device: &Device, window: &Window)
+    {
+        let surface_cap = device.device.physical_device().surface_capabilities(&window.window, Default::default()).ok().unwrap();
+        let (format, color) = device.device.physical_device().surface_formats(&window.window, Default::default()).ok().unwrap()[0];
+        
+        let opt_swapchain = vulkano::swapchain::Swapchain::new(device.device.to_owned(), window.window.to_owned(), SwapchainCreateInfo
+        {
+            min_image_count: match surface_cap.max_image_count {
+                None => max(2, surface_cap.min_image_count),
+                Some(limit) => min(max(2, surface_cap.min_image_count), limit)
+            },
+            image_format: Some(format),
+            image_extent: surface_cap.current_extent.unwrap_or([640, 480]),
+            image_usage: ImageUsage::COLOR_ATTACHMENT,
+            pre_transform: surface_cap.current_transform,
+            .. Default::default()
+        });
+
+        if opt_swapchain.is_err()
+        {
+            log::error!("Failed to create swapchain. Message: {}", opt_swapchain.err().unwrap());
+            panic!();
+        }
+
+        let (swapchain, images) = opt_swapchain.ok().unwrap();
+
+        Swapchain {swapchain: swapchain, images: images};
     }
 }
 
