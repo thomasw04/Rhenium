@@ -1,13 +1,9 @@
-extern crate log;
-
-mod detail;
+mod rhenium;
+use rhenium::*;
 mod logging;
 
 use std::env;
-use detail::vulkan::{Window, Instance, Version};
-use vulkano::image::swapchain;
 
-use crate::detail::vulkan::{DeviceInfo, Device, Swapchain};
 
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
@@ -23,5 +19,6 @@ fn main() {
     let device = Device::new(&instance, device_info);
     let window = Window::new(&instance, "RustyBear-Engine", 512, 512);
     let _swapchain = Swapchain::new(&device, &window);
+    
     window.run( || {});
 }

@@ -1,20 +1,8 @@
-extern crate winit;
-extern crate vulkano_win;
-extern crate vulkano;
-extern crate log;
+mod vulkan_defines;
+use vulkan_defines as raw;
+use vulkan_defines::VkSurfaceBuild;
 
-use std::cmp::max;
-use std::cmp::min;
-use vulkano::image::ImageUsage;
-use vulkano_win::VkSurfaceBuild;
-use vulkano::{instance::debug::{DebugUtilsMessengerCreateInfo, DebugUtilsMessageSeverity, DebugUtilsMessageType, DebugUtilsMessenger}, device::{Properties, physical::PhysicalDeviceType, physical::PhysicalDevice, DeviceCreateInfo, QueueCreateInfo, Queue, QueueFlags, DeviceExtensions}, memory::MemoryProperties, swapchain::{Surface, SwapchainCreateInfo}, image::{swapchain, SwapchainImage}};
-use winit::{dpi::LogicalSize, event::{Event, WindowEvent}};
-use std::{sync::Arc, borrow::BorrowMut};
-
-#[cfg(all(debug_assertions))]
-const VALIDATION_LAYERS_ENABLED: bool = true;
-#[cfg(not(debug_assertions))]
-const VALIDATION_LAYERS_ENABLED: bool = false;
+use std::{sync::Arc, borrow::BorrowMut, cmp::max, cmp::min};
 
 pub struct Version {
     pub major: u32,
@@ -23,8 +11,8 @@ pub struct Version {
 }
 
 pub struct Instance {
-    instance: Arc<vulkano::instance::Instance>,
-    debug: Option<Arc<DebugUtilsMessenger>>,
+    instance: Arc<raw::Instance>,
+    debug: Option<Arc<raw::DebugUtilsMessenger>>,
 }
 
 #[derive(Default)]
@@ -37,34 +25,33 @@ pub struct DeviceInfo {
 }
 
 pub struct Device {
-    device: Arc<vulkano::device::Device>,
+    device: Arc<raw::Device>,
     info: DeviceInfo,
-    queues: Vec<Arc<Queue>>,
+    queues: Vec<Arc<raw::Queue>>,
 }
 
 pub struct Window {
     title: &'static str,
     width: u32,
     height: u32,
-    window: Arc<Surface>,
-    event_loop: winit::event_loop::EventLoop<()>,
+    window: Arc<raw::Surface>,
+    event_loop: raw::EventLoop<()>,
 }
 
 pub struct Swapchain {
-    swapchain: Arc<vulkano::swapchain::Swapchain>,
-    images: Vec<Arc<SwapchainImage>>
+    swapchain: Arc<raw::Swapchain>,
+    images: Vec<Arc<raw::SwapchainImage>>
 }
 
 impl Instance {
     pub fn new(name: String, version: Version) -> Self {
+    
         log::info!("Loading vulkan library...");
-
-        let library = vulkano::library::VulkanLibrary::new()
+        let library = raw::VulkanLibrary::new()
             .unwrap_or_else(|err| panic!("Couldn't load Vulkan library: {:?}", err));
-
         let mut layers = vec!["VK_LAYER_KHRONOS_validation".to_string()];
 
-        if VALIDATION_LAYERS_ENABLED
+        if raw::VALIDATION_LAYERS_ENABLED
         {
             if !Self::validation_layers_available(&library, &layers)
             {
@@ -81,23 +68,21 @@ impl Instance {
             layers.clear();
         }
 
-        let info = vulkano::instance::InstanceCreateInfo {
+        let info = raw::InstanceCreateInfo {
             application_name: Some(name),
-            application_version: vulkano::Version { major: version.major, minor: version.minor, patch: version.patch },
+            application_version: raw::Version { major: version.major, minor: version.minor, patch: version.patch },
             engine_name: Some("RustyBear-Engine".into()),
-            engine_version: vulkano::Version {major: 1, minor: 0, patch: 0},
-
-            //For now just enable all supported extensions. Should be changed.
-            enabled_extensions: vulkano_win::required_extensions(&library),
+            engine_version: raw::Version {major: 1, minor: 0, patch: 0},
+            enabled_extensions: raw::required_extensions(&library),
             enabled_layers: layers,
             //Needed because macos only supports a subset of vulkan. We don't want that. Native metal support will come.
             enumerate_portability: true,
             .. Default::default()
-        };
-
-        log::info!("Loading vulkan instance...");
-
-        let instance = vulkano::instance::Instance::new(library.clone(), info)
+            };
+        
+            log::info!("Loading vulkan instance...");
+        
+        let instance = raw::Instance::new(library.clone(), info)
             .unwrap_or_else(|err| panic!("Couldn't create instance: {:?}", err));
 
         let callback = Self::create_debug_callback(&instance);
@@ -105,10 +90,9 @@ impl Instance {
         return Instance { instance: instance.clone(), debug: callback};
     }
 
-    fn validation_layers_available(library: &Arc<vulkano::library::VulkanLibrary>, layers: &Vec<String>) -> bool
+    fn validation_layers_available(library: &Arc<raw::VulkanLibrary>, layers: &Vec<String>) -> bool
     {
         log::info!("Loading available layers...");
-
         let sup_layers: Vec<String> = library.layer_properties().unwrap().map(|a| a.name().to_owned()).collect();
 
         for l in sup_layers.clone()
@@ -119,27 +103,27 @@ impl Instance {
         return layers.iter().all(|layer| sup_layers.contains(&layer.to_string()));
     }
 
-    fn create_debug_callback(instance: &Arc<vulkano::instance::Instance>) -> Option<Arc<vulkano::instance::debug::DebugUtilsMessenger>>
+    fn create_debug_callback(instance: &Arc<raw::Instance>) -> Option<Arc<raw::DebugUtilsMessenger>>
     {
-        if !VALIDATION_LAYERS_ENABLED { return None; }
+        if !raw::VALIDATION_LAYERS_ENABLED { return None; }
 
         let callback = unsafe {
-            DebugUtilsMessenger::new(instance.to_owned(), 
-                DebugUtilsMessengerCreateInfo 
+            raw::DebugUtilsMessenger::new(instance.to_owned(), 
+                raw::DebugUtilsMessengerCreateInfo 
                 { 
-                    message_severity: DebugUtilsMessageSeverity::ERROR | DebugUtilsMessageSeverity::WARNING | DebugUtilsMessageSeverity::INFO,
-                    message_type: DebugUtilsMessageType::GENERAL | DebugUtilsMessageType::PERFORMANCE | DebugUtilsMessageType::VALIDATION,
-                    ..DebugUtilsMessengerCreateInfo::user_callback(Arc::new(|msg| 
+                    message_severity: raw::DebugUtilsMessageSeverity::ERROR | raw::DebugUtilsMessageSeverity::WARNING | raw::DebugUtilsMessageSeverity::INFO,
+                    message_type: raw::DebugUtilsMessageType::GENERAL | raw::DebugUtilsMessageType::PERFORMANCE | raw::DebugUtilsMessageType::VALIDATION,
+                    ..raw::DebugUtilsMessengerCreateInfo::user_callback(Arc::new(|msg| 
                     {
-                        let part = if msg.ty.contains(DebugUtilsMessageType::GENERAL)
+                        let part = if msg.ty.contains(raw::DebugUtilsMessageType::GENERAL)
                         { 
                             "General"
                         }
-                        else if msg.ty.contains(DebugUtilsMessageType::PERFORMANCE)
+                        else if msg.ty.contains(raw::DebugUtilsMessageType::PERFORMANCE)
                         {
                             "Performance"
                         }
-                        else if msg.ty.contains(DebugUtilsMessageType::VALIDATION)
+                        else if msg.ty.contains(raw::DebugUtilsMessageType::VALIDATION)
                         {
                             "Validation"
                         }
@@ -147,17 +131,15 @@ impl Instance {
                         {
                             "Unknown"
                         };
-                        
-
-                        if msg.severity.contains(DebugUtilsMessageSeverity::ERROR)
+                        if msg.severity.contains(raw::DebugUtilsMessageSeverity::ERROR)
                         {
                             log::error!("[{}] {}", part, msg.description);
                         }
-                        else if msg.severity.contains(DebugUtilsMessageSeverity::WARNING)
+                           else if msg.severity.contains(raw::DebugUtilsMessageSeverity::WARNING)
                         {
                             log::warn!("[{}] {}", part, msg.description);
                         }
-                        else if msg.severity.contains(DebugUtilsMessageSeverity::INFO)
+                        else if msg.severity.contains(raw::DebugUtilsMessageSeverity::INFO)
                         {
                             log::info!("[{}] {}", part, msg.description);
                         }
@@ -178,7 +160,6 @@ impl Instance {
 }
 
 impl DeviceInfo {
-
     pub fn new(instance: &Instance) -> Self
     {
         let mut best_device = DeviceInfo {..Default::default()};
@@ -186,11 +167,9 @@ impl DeviceInfo {
         for (pos, dev) in instance.instance.enumerate_physical_devices().unwrap().enumerate()
         {
             let mut device = DeviceInfo { index: pos, .. Default::default()};
-
             Self::compute_base_score(device.borrow_mut() ,dev.properties());
             Self::compute_memory_score(device.borrow_mut(), dev.memory_properties());
             Self::find_queue_families(device.borrow_mut(), dev);
-
             if device.score > best_device.score
             {
                best_device = device;
@@ -200,36 +179,33 @@ impl DeviceInfo {
         return best_device;
     }
 
-    fn compute_base_score(device: &mut DeviceInfo, props: &Properties)
+    fn compute_base_score(device: &mut DeviceInfo, props: &raw::Properties)
     {
         //Very basic scoring function. Should be extended in the future. (score += 0 is kind of a placeholder)
         match props.device_type 
         {
-            PhysicalDeviceType::DiscreteGpu => { device.score += 100; device.discrete = true; },
-            PhysicalDeviceType::IntegratedGpu => { device.score += 10; device.discrete = false; },
-            PhysicalDeviceType::VirtualGpu => { device.score += 1; device.discrete = false; },
-            PhysicalDeviceType::Other => { device.score += 0; device.discrete = false; },
+            raw::PhysicalDeviceType::DiscreteGpu => { device.score += 100; device.discrete = true; },
+            raw::PhysicalDeviceType::IntegratedGpu => { device.score += 10; device.discrete = false; },
+            raw::PhysicalDeviceType::VirtualGpu => { device.score += 1; device.discrete = false; },
+            raw::PhysicalDeviceType::Other => { device.score += 0; device.discrete = false; },
             _ => { device.score += 0; device.discrete = false; },
         }
     }
-
-    fn compute_memory_score(device: &mut DeviceInfo, props: &MemoryProperties)
+    fn compute_memory_score(device: &mut DeviceInfo, props: &raw::MemoryProperties)
     {
         //Not implemented.
         device.memory = 0;
     }
 
-    fn find_queue_families(device: &mut DeviceInfo, phys: Arc<PhysicalDevice>)
+    fn find_queue_families(device: &mut DeviceInfo, phys: Arc<raw::PhysicalDevice>)
     {
         for (pos, family) in phys.queue_family_properties().iter().enumerate()
         {
-            if family.queue_flags.contains(QueueFlags::GRAPHICS)
+            if family.queue_flags.contains(raw::QueueFlags::GRAPHICS)
             {
                 device.queue_index = pos;
                 return;
             }
-
-
         }
     }
 
@@ -239,14 +215,13 @@ impl Device {
     pub fn new(instance: &Instance, info: DeviceInfo) -> Self
     {
         let phys = instance.instance.enumerate_physical_devices().unwrap().nth(info.index).unwrap();
-
-        let (device, queues) = vulkano::device::Device::new(phys,
-        DeviceCreateInfo {
-            queue_create_infos: vec![QueueCreateInfo {
+        let (device, queues) = raw::Device::new(phys,
+        raw::DeviceCreateInfo {
+            queue_create_infos: vec![raw::QueueCreateInfo {
                 queue_family_index: info.queue_index as u32,
                 ..Default::default()
             }],
-            enabled_extensions: DeviceExtensions {
+            enabled_extensions: raw::DeviceExtensions {
                 khr_swapchain: true,
                 .. Default::default()
             },
@@ -258,15 +233,15 @@ impl Device {
 }
 
 impl Window {
-
     pub fn new(instance: &Instance, title: &'static str, width: u32, height: u32) -> Self
     {
-        let event_loop = winit::event_loop::EventLoop::new();
-        let window = winit::window::WindowBuilder::new()
+        let event_loop = raw::EventLoop::new();
+        let window = raw::WindowBuilder::new()
             .with_title(title)
-            .with_inner_size(LogicalSize::new(f64::from(width), f64::from(height)))
+            .with_inner_size(raw::LogicalSize::new(f64::from(width), f64::from(height)))
             .build_vk_surface(&event_loop, instance.instance.to_owned())
             .expect("Failed to create the window.");
+
         Window { title: title, width: width, height: height, window: window, event_loop: event_loop }
     }
 
@@ -276,10 +251,9 @@ impl Window {
         {
             control_flow.set_poll();
             callback();
-
             match event {
-                Event::WindowEvent {
-                    event: WindowEvent::CloseRequested,
+                raw::Event::WindowEvent {
+                    event: raw::WindowEvent::CloseRequested,
                     ..
                 } => {
                     control_flow.set_exit();
@@ -295,8 +269,7 @@ impl Swapchain {
     {
         let surface_cap = device.device.physical_device().surface_capabilities(&window.window, Default::default()).ok().unwrap();
         let (format, color) = device.device.physical_device().surface_formats(&window.window, Default::default()).ok().unwrap()[0];
-        
-        let opt_swapchain = vulkano::swapchain::Swapchain::new(device.device.to_owned(), window.window.to_owned(), SwapchainCreateInfo
+        let opt_swapchain = raw::Swapchain::new(device.device.to_owned(), window.window.to_owned(), raw::SwapchainCreateInfo
         {
             min_image_count: match surface_cap.max_image_count {
                 None => max(2, surface_cap.min_image_count),
@@ -304,7 +277,7 @@ impl Swapchain {
             },
             image_format: Some(format),
             image_extent: surface_cap.current_extent.unwrap_or([640, 480]),
-            image_usage: ImageUsage::COLOR_ATTACHMENT,
+            image_usage: raw::ImageUsage::COLOR_ATTACHMENT,
             pre_transform: surface_cap.current_transform,
             .. Default::default()
         });
@@ -320,4 +293,3 @@ impl Swapchain {
         Swapchain {swapchain: swapchain, images: images};
     }
 }
-
