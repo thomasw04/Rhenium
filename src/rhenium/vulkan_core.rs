@@ -289,7 +289,6 @@ impl Swapchain {
         }
 
         let (swapchain, images) = opt_swapchain.ok().unwrap();
-
         Swapchain {swapchain: swapchain, images: images};
     }
 }

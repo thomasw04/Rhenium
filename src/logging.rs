@@ -1,7 +1,4 @@
 use simplelog::{ConfigBuilder, TermLogger};
-
-extern crate simplelog;
-
 use simplelog::{Level, Color, LevelFilter, TerminalMode, ColorChoice};
 
 pub fn init()

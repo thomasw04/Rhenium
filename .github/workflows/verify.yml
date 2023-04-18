@@ -1,4 +1,4 @@
-name: Rust
+name: Verify and Test
 
 on:
   push:
@@ -9,7 +9,21 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
-jobs:    
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Lint Code
+        uses: github/super-linter@v5
+        env:
+          VALIDATE_ALL_CODEBASE: false
+          DEFAULT_BRANCH: main
+
   test:
     strategy:
       matrix:
@@ -18,7 +32,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: lukka/get-cmake@latest
-    - name: Build
+    - name: Build engine
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
