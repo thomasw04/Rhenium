@@ -1,7 +1,7 @@
-# RustyBear-Engine  
+# Rhenium
 ![Verify and Tests](https://github.com/thomasw04/RustyBear-Engine/actions/workflows/verify.yml/badge.svg)
 
-Game-Engine experiment written in Rust.
+Game-Engine experiment written in Rust. (This will become the Rhenium abstraction layer)
 
 The plan is to provide Vulkan support for Windows + Linux and native Metal support for macOS.  
 
