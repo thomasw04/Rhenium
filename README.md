@@ -1,5 +1,5 @@
 # Rhenium
-![Verify and Tests](https://github.com/thomasw04/RustyBear-Engine/actions/workflows/verify.yml/badge.svg)
+![Verify and Tests](https://github.com/thomasw04/Rhenium/actions/workflows/verify.yml/badge.svg)
 
 Game-Engine experiment written in Rust. (This will become the Rhenium abstraction layer)
 
