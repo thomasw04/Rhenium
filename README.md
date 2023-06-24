@@ -5,7 +5,7 @@ Game-Engine experiment written in Rust. (This will become the Rhenium abstractio
 
 The plan is to provide Vulkan support for Windows + Linux and native Metal support for macOS.  
 
-At the beginning, I will try to make rendering a triangle work. Then I will decide where to go with this project.
+At the start, I will try to make rendering a triangle work. Then I will decide where to go with this project.
 
 ## Install
 
